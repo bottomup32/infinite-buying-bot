@@ -111,9 +111,11 @@ def compute_orders(s: State, ref_close: float, sma5: float, p: Params):
             if base_qty > 0:
                 buys.append(("BUY", round(large, 2), base_qty))
         elif s.mode == "REVERSE":
-            base_qty = math.floor(amt / rev_buy)
+            # 언이=5일평균-0.01 / 라오어=별지점(P=0→평단)-0.01
+            rprice = rev_buy if p.reverse_ref == "sma5" else star_buy
+            base_qty = math.floor(amt / rprice) if rprice > 0 else 0
             if base_qty > 0:
-                buys.append(("BUY", round(rev_buy, 2), base_qty))
+                buys.append(("BUY", round(rprice, 2), base_qty))
         elif s.T < n / 2:  # 전반전: 절반 별지점 + 나머지 평단
             price1 = min(star_buy, large)
             price2 = min(s.avg, large)
