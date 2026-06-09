@@ -1,0 +1,6 @@
+alpaca-py
+gspread
+google-auth
+pandas
+yfinance
+python-dotenv

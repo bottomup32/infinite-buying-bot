@@ -1,0 +1,47 @@
+name: infinite-buying-bot
+
+# 미장 마감 약 20분 전 자동 실행.
+#  - 서머타임(EDT): 19:40 UTC = 15:40 ET 가 동작, 20:40 UTC 는 장마감 가드로 스킵
+#  - 윈터(EST):     20:40 UTC = 15:40 ET 가 동작, 19:40 UTC 는 가드로 스킵
+#  → cron 2개 + bot.py 의 장마감 가드로 DST 자동 대응 (정확히 1회만 주문)
+on:
+  schedule:
+    - cron: "40 19 * * 1-5"
+    - cron: "40 20 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "실행 모드 (dry / live)"
+        default: "dry"
+        type: choice
+        options: ["dry", "live"]
+
+concurrency:
+  group: bot
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Run bot
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          ALPACA_PAPER: "true"
+          GOOGLE_SA_JSON: ${{ secrets.GOOGLE_SA_JSON }}
+          DASHBOARD_SHEET_ID: ${{ secrets.DASHBOARD_SHEET_ID }}
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            python bot.py --live
+          elif [ "${{ github.event.inputs.mode }}" = "live" ]; then
+            python bot.py --live --force
+          else
+            python bot.py --force
+          fi
