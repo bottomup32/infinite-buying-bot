@@ -120,16 +120,17 @@ def run_once(live=False, use_sheet=True, force=False):
 
     broker = bk.Broker(config.ALPACA_API_KEY, config.ALPACA_SECRET_KEY, paper=config.ALPACA_PAPER)
 
-    # 장 마감 임박 가드 — 주문 제출만 윈도우 안에서. 시트/상태는 항상 갱신(가시성).
+    # 주문 윈도우 = 장 열려있고 CLS 마감(15:58 ET) 전. GitHub cron 지연(최대 2시간+)
+    # 흡수 위해 넓게(마감 4분~6시간 전). 시트/상태는 항상 갱신(가시성).
     in_window = True
     if live and not force:
         clk = broker.clock()
         m = clk["minutes_to_close"]
-        in_window = bool(clk["is_open"] and m is not None and 2 <= m <= 45)
+        in_window = bool(clk["is_open"] and m is not None and 4 <= m <= 390)
         if in_window:
-            print(f"⏰ 마감 {round(m)}분 전 — 주문 진행")
+            print(f"⏰ 장중 (마감 {round(m)}분 전) — 주문 진행")
         else:
-            print(f"⏸ 윈도우 밖 → 주문 생략(시트만 갱신). "
+            print(f"⏸ 장 외/마감직전 → 주문 생략(시트만 갱신). "
                   f"is_open={clk['is_open']} 마감까지={None if m is None else round(m)}분")
     effective_live = live and (force or in_window)
 
@@ -182,7 +183,11 @@ def run_once(live=False, use_sheet=True, force=False):
 
         log = []
         if effective_live:
-            submit_orders(broker, sym, orders, log)
+            # 같은날 앞선 cron이 이미 주문 깔았으면 재제출 스킵 (LOC/지정가는 종가/EOD까지 유효)
+            if not force and broker.has_open_orders(sym):
+                log.append("  ⏭ 오늘 이미 주문 있음 — 유지(재제출 생략)")
+            else:
+                submit_orders(broker, sym, orders, log)
         else:
             for kind, price, qty in orders["buys"]:
                 log.append(f"  (preview) 매수 LOC ${price:.2f}/{qty}주")

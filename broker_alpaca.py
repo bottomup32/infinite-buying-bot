@@ -79,9 +79,15 @@ class Broker:
         return out
 
     # ---- 주문 ----
-    def cancel_open(self, symbol):
+    def open_orders(self, symbol):
         req = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[symbol], limit=200)
-        for o in self.trading.get_orders(req):
+        return list(self.trading.get_orders(req))
+
+    def has_open_orders(self, symbol):
+        return len(self.open_orders(symbol)) > 0
+
+    def cancel_open(self, symbol):
+        for o in self.open_orders(symbol):
             try:
                 self.trading.cancel_order_by_id(o.id)
             except Exception:
