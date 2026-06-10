@@ -120,15 +120,18 @@ def run_once(live=False, use_sheet=True, force=False):
 
     broker = bk.Broker(config.ALPACA_API_KEY, config.ALPACA_SECRET_KEY, paper=config.ALPACA_PAPER)
 
-    # 장 마감 임박 가드 (LIVE만; CLS는 15:58 ET 마감)
+    # 장 마감 임박 가드 — 주문 제출만 윈도우 안에서. 시트/상태는 항상 갱신(가시성).
+    in_window = True
     if live and not force:
         clk = broker.clock()
         m = clk["minutes_to_close"]
-        if not (clk["is_open"] and m is not None and 2 <= m <= 45):
-            print(f"⏸ 장 마감 임박(2~45분 전) 아님 → 주문 생략. "
+        in_window = bool(clk["is_open"] and m is not None and 2 <= m <= 45)
+        if in_window:
+            print(f"⏰ 마감 {round(m)}분 전 — 주문 진행")
+        else:
+            print(f"⏸ 윈도우 밖 → 주문 생략(시트만 갱신). "
                   f"is_open={clk['is_open']} 마감까지={None if m is None else round(m)}분")
-            return
-        print(f"⏰ 마감 {round(m)}분 전 — 주문 진행")
+    effective_live = live and (force or in_window)
 
     account = broker.account()
     print(f"계좌 Equity ${account['equity']:,.2f} | 현금 ${account['cash']:,.2f} | BP ${account['buying_power']:,.2f}")
@@ -178,13 +181,13 @@ def run_once(live=False, use_sheet=True, force=False):
         star_sell = max(0.01, state.avg * (1 + P / 100.0)) if state.shares > 0 else 0.0
 
         log = []
-        if live:
+        if effective_live:
             submit_orders(broker, sym, orders, log)
         else:
             for kind, price, qty in orders["buys"]:
-                log.append(f"  (dry) 매수 LOC ${price:.2f}/{qty}주")
+                log.append(f"  (preview) 매수 LOC ${price:.2f}/{qty}주")
             for kind, price, qty in orders["sells"]:
-                log.append(f"  (dry) {kind} ${0 if price is None else price:.2f}/{qty}주")
+                log.append(f"  (preview) {kind} ${0 if price is None else price:.2f}/{qty}주")
 
         pos_val = obs_shares * ref_close
         unreal = obs_shares * (ref_close - obs_avg) if obs_shares > 0 else 0.0
@@ -206,7 +209,8 @@ def run_once(live=False, use_sheet=True, force=False):
         history_rows.append([
             now.strftime("%Y-%m-%d %H:%M"), sym, state.mode, f"{state.T:.3f}",
             f"{ref_close:.2f}", obs_shares, f"{obs_avg:.2f}", f"{unreal:+.2f}",
-            f"{state.realized_cum:+.2f}", state.cycles, action, "LIVE" if live else "dry-run",
+            f"{state.realized_cum:+.2f}", state.cycles, action,
+            "LIVE제출" if effective_live else ("preview" if live else "dry-run"),
         ])
         new_states[sym] = (state, now_iso)
         save_state_local(sym, state, now_iso)

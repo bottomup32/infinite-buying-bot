@@ -6,8 +6,10 @@ name: infinite-buying-bot
 #  → cron 2개 + bot.py 의 장마감 가드로 DST 자동 대응 (정확히 1회만 주문)
 on:
   schedule:
-    - cron: "40 19 * * 1-5"
-    - cron: "40 20 * * 1-5"
+    # GitHub cron은 부하 시 수 분~수십 분 지연되므로 윈도우 안에 여러 번 시도.
+    # 장마감 가드(2~45분 전)가 윈도우 밖 실행은 자동 스킵 → 안전.
+    - cron: "30,40,50 19 * * 1-5"   # EDT(서머): 15:30/40/50 ET
+    - cron: "30,40,50 20 * * 1-5"   # EST(윈터): 15:30/40/50 ET
   workflow_dispatch:
     inputs:
       mode:
