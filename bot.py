@@ -211,12 +211,14 @@ def run_once(live=False, use_sheet=True, force=False):
             "star_sell": star_sell, "large": orders["large"], "amt": orders["amt"],
             "ref_close": ref_close, "orders_text": orders["buys"] + orders["sells"],
         })
-        history_rows.append([
-            now.strftime("%Y-%m-%d %H:%M"), sym, state.mode, f"{state.T:.3f}",
-            f"{ref_close:.2f}", obs_shares, f"{obs_avg:.2f}", f"{unreal:+.2f}",
-            f"{state.realized_cum:+.2f}", state.cycles, action,
-            "LIVE제출" if effective_live else ("preview" if live else "dry-run"),
-        ])
+        # 의미있는 이벤트만 기록(제출 or 체결변화) — 장 전체 30분마다 도는 빈 preview 노이즈 방지
+        if effective_live or action != "NONE":
+            history_rows.append([
+                now.strftime("%Y-%m-%d %H:%M"), sym, state.mode, f"{state.T:.3f}",
+                f"{ref_close:.2f}", obs_shares, f"{obs_avg:.2f}", f"{unreal:+.2f}",
+                f"{state.realized_cum:+.2f}", state.cycles, action,
+                "LIVE제출" if effective_live else ("preview" if live else "dry-run"),
+            ])
         new_states[sym] = (state, now_iso)
         save_state_local(sym, state, now_iso)
 
@@ -226,7 +228,8 @@ def run_once(live=False, use_sheet=True, force=False):
             import sheets_dashboard as dash
             dash.save_states(ss, new_states)
             dash.update_dashboard(ss, account, views, now=now)
-            dash.append_history(ss, history_rows)
+            if history_rows:
+                dash.append_history(ss, history_rows)
             print("\n📊 Google Sheet 상태·대시보드·기록 갱신 완료")
         except Exception as e:
             print(f"\n⚠️ 시트 갱신 실패: {e}")
