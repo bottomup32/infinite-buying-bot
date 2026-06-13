@@ -10,6 +10,10 @@ ALPACA_API_KEY = os.getenv("ALPACA_API_KEY", "")
 ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY", "")
 ALPACA_PAPER = os.getenv("ALPACA_PAPER", "true").lower() == "true"
 
+# 주문 체결방식: 'cls'=LOC/MOC(종가, 라오어 원문) | 'day'=장중 지정가(체결 잘됨)
+# Alpaca paper는 LOC 시뮬이 부분/미체결 → paper는 day, live는 cls 기본.
+ORDER_TIF = os.getenv("ORDER_TIF", "day" if ALPACA_PAPER else "cls")
+
 # ----- Google Sheet -----
 GOOGLE_SA_JSON = os.getenv("GOOGLE_SA_JSON", "")
 DASHBOARD_SHEET_ID = os.getenv("DASHBOARD_SHEET_ID", "")

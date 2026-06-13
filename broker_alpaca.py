@@ -96,20 +96,16 @@ class Broker:
     def _side(self, s):
         return OrderSide.BUY if s == "BUY" else OrderSide.SELL
 
-    def submit_loc(self, symbol, side, qty, limit_price):
-        """LOC = 지정가 + 종가체결(TimeInForce.CLS)."""
+    def _tif(self, tif):
+        return TimeInForce.CLS if str(tif).lower() == "cls" else TimeInForce.DAY
+
+    def submit_limit(self, symbol, side, qty, limit_price, tif="cls"):
+        """지정가. tif='cls'→LOC(종가체결) / 'day'→장중 지정가."""
         return self.trading.submit_order(LimitOrderRequest(
             symbol=symbol, qty=qty, side=self._side(side),
-            time_in_force=TimeInForce.CLS, limit_price=round(float(limit_price), 2)))
+            time_in_force=self._tif(tif), limit_price=round(float(limit_price), 2)))
 
-    def submit_moc(self, symbol, side, qty):
-        """MOC = 시장가 + 종가체결."""
+    def submit_market(self, symbol, side, qty, tif="cls"):
+        """시장가. tif='cls'→MOC(종가) / 'day'→즉시 체결."""
         return self.trading.submit_order(MarketOrderRequest(
-            symbol=symbol, qty=qty, side=self._side(side),
-            time_in_force=TimeInForce.CLS))
-
-    def submit_limit_day(self, symbol, side, qty, limit_price):
-        """지정가(장중) 매도 — 당일 유효."""
-        return self.trading.submit_order(LimitOrderRequest(
-            symbol=symbol, qty=qty, side=self._side(side),
-            time_in_force=TimeInForce.DAY, limit_price=round(float(limit_price), 2)))
+            symbol=symbol, qty=qty, side=self._side(side), time_in_force=self._tif(tif)))

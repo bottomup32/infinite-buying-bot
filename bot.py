@@ -82,25 +82,27 @@ def seed_state(obs_shares, obs_avg, p):
 # ----------------------------------------------------------------------
 # 주문 제출
 # ----------------------------------------------------------------------
-def submit_orders(broker, symbol, orders, log):
+def submit_orders(broker, symbol, orders, log, tif="cls"):
+    """tif='cls'(LOC/MOC, 종가) | 'day'(장중 지정가). 지정가 3/4 매도는 항상 DAY."""
+    lbl = "LOC" if tif == "cls" else "지정가"
     broker.cancel_open(symbol)
     for kind, price, qty in orders["buys"]:
         try:
-            broker.submit_loc(symbol, "BUY", qty, price)
-            log.append(f"  ✅ 매수 LOC ${price:.2f}/{qty}주 제출")
+            broker.submit_limit(symbol, "BUY", qty, price, tif=tif)
+            log.append(f"  ✅ 매수 {lbl} ${price:.2f}/{qty}주 제출")
         except Exception as e:
-            log.append(f"  ⚠️ 매수 LOC ${price:.2f}/{qty}주 실패: {e}")
+            log.append(f"  ⚠️ 매수 ${price:.2f}/{qty}주 실패: {e}")
     for kind, price, qty in orders["sells"]:
         try:
             if kind == "SELL_LOC":
-                broker.submit_loc(symbol, "SELL", qty, price)
-                log.append(f"  ✅ 쿼터 매도 LOC ${price:.2f}/{qty}주 제출")
+                broker.submit_limit(symbol, "SELL", qty, price, tif=tif)
+                log.append(f"  ✅ 쿼터 매도 {lbl} ${price:.2f}/{qty}주 제출")
             elif kind == "SELL_LIMIT":
-                broker.submit_limit_day(symbol, "SELL", qty, price)
+                broker.submit_limit(symbol, "SELL", qty, price, tif="day")
                 log.append(f"  ✅ 지정가 매도 ${price:.2f}/{qty}주 제출")
             elif kind == "SELL_MOC":
-                broker.submit_moc(symbol, "SELL", qty)
-                log.append(f"  ✅ MOC 매도 {qty}주 제출")
+                broker.submit_market(symbol, "SELL", qty, tif=tif)
+                log.append(f"  ✅ {'MOC' if tif=='cls' else '시장가'} 매도 {qty}주 제출")
         except Exception as e:
             log.append(f"  ⚠️ 매도 제출 실패: {e}")
 
@@ -112,7 +114,7 @@ def run_once(live=False, use_sheet=True, force=False):
     now = dt.datetime.now()
     now_iso = now.isoformat()
     print(f"\n=== 무한매수법 봇 {now:%Y-%m-%d %H:%M:%S}  "
-          f"[{'LIVE 주문제출' if live else 'DRY-RUN'}] ===")
+          f"[{'LIVE 주문제출' if live else 'DRY-RUN'}] 체결방식={config.ORDER_TIF.upper()} ===")
 
     if not config.ALPACA_API_KEY:
         print("⚠️ ALPACA_API_KEY 없음 — .env/Secret 설정 필요. 중단.")
@@ -187,7 +189,7 @@ def run_once(live=False, use_sheet=True, force=False):
             if not force and broker.has_open_orders(sym):
                 log.append("  ⏭ 오늘 이미 주문 있음 — 유지(재제출 생략)")
             else:
-                submit_orders(broker, sym, orders, log)
+                submit_orders(broker, sym, orders, log, tif=config.ORDER_TIF)
         else:
             for kind, price, qty in orders["buys"]:
                 log.append(f"  (preview) 매수 LOC ${price:.2f}/{qty}주")
